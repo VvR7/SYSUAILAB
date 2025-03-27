@@ -5,8 +5,16 @@ success = False
 tar = {}
 dx = [0, 0, 1, -1]
 dy = [1, -1, 0, 0]
-st=set()
+st = set()
 fa = {}
+
+shift_map = [
+    [0,  0,  0,  0,   0],
+    [0,  60, 56, 52, 48],
+    [0,  44, 40, 36, 32],
+    [0,  28, 24, 20, 16],
+    [0,  12, 8,   4,  0]
+]
 
 def init():
     global tar
@@ -26,33 +34,44 @@ def init():
     tar[14] = (4, 2)
     tar[15] = (4, 3)
 
-def get(a, x):
+def array_to_int(a):
+    num = 0
     for i in range(1, 5):
         for j in range(1, 5):
-            if a[i][j] == x:
-                return (i, j)
-    return (0, 0)
+            num = (num << 4) | a[i][j]
+    return num
 
-def h(a):
+def h(num):
     ans = 0
-    for i in range(1, 5):
-        for j in range(1, 5):
-            if a[i][j] == 0:
+    for i in range(1,5):
+        for j in range(1,5):
+            shift = shift_map[i][j]
+            val = (num >> shift) & 0xF
+            if val == 0:
                 continue
-            tx,ty = tar.get(a[i][j], (0, 0))
-            ans += abs(tx - i) + abs(ty - j)
-            if i==tx:
-                for jj in range(j+1,5):
-                    tx2,ty2=tar.get(a[i][jj],(0,0))
-                    if i==tx2:
-                        if (j-jj)*(ty-ty2)<0:
-                            ans+=2
-            if j==ty:
-                for ii in range(i+1,5):
-                    tx2,ty2=tar.get(a[ii][j],(0,0))
-                    if j==ty2:
-                        if (i-ii)*(tx-tx2)<0:
-                            ans+=2
+            tx, ty = tar[val]
+            ans += abs(i - tx) + abs(j - ty)
+            # Check row conflicts
+            if i == tx:
+                for jj in range(j + 1, 5):
+                    shift_jj = shift_map[i][jj]
+                    val_jj = (num >> shift_jj) & 0xF
+                    if val_jj==0:
+                        continue
+                    tx_jj, ty_jj = tar[val_jj]
+                    if tx_jj == i:
+                        if (ty < ty_jj) != (j < jj):
+                            ans += 2
+            if j == ty:
+                for ii in range(i + 1, 5):
+                    shift_ii = shift_map[ii][j]
+                    val_ii = (num >> shift_ii) & 0xF
+                    if val_ii==0:
+                        continue
+                    tx_ii, ty_ii = tar[val_ii]
+                    if ty_ii == j:
+                        if (tx < tx_ii) != (i < ii):
+                            ans += 2
     return ans
 
 def calc(a):
@@ -84,49 +103,64 @@ def main():
     if calc(a) % 2 == 0:
         print("Can't Solve")
         return
-    start = tuple(tuple(row) for row in a)
+    start = array_to_int(a)
     start_f = 0 + h(start)
     q = []
-    heapq.heappush(q, (start_f, 0, start))
+    heapq.heappush(q, (start_f, 0, start, sx, sy))
     fa[start] = None
     global success
     success = False
     start_time = time.time()
+    node_count = 0
     while q and not success:
-        cur_f, u_g, u_a = heapq.heappop(q)
-        if u_a in st:
+        cur_f, u_g, u_s, u_x, u_y = heapq.heappop(q)
+        if u_s in st:
             continue
-        st.add(u_a)
-        if h(u_a) == 0:
+        node_count += 1
+        st.add(u_s)
+        if h(u_s) == 0:
             success = True
             print(u_g)
             path = []
             def backtrace(state):
-                if state == start:
-                    pos = get(state, 0)
-                    path.append(f"({pos[0]},{pos[1]})")
+                if fa.get(state) is None:
+                    x, y = (u_x, u_y) if state == start else int_to_pos(state)
+                    path.append(f"({x},{y})")
                     return
                 backtrace(fa[state])
-                pos = get(state, 0)
-                path.append(f"({pos[0]},{pos[1]})")
-            backtrace(u_a)
-            print("->".join(path) + "->")
+                x, y = int_to_pos(state)
+                path.append(f"({x},{y})")
+            backtrace(u_s)
+            print("->".join(path))
             break
-        cur_a = [list(row) for row in u_a]
-        x, y = get(cur_a, 0)
+        x, y = u_x, u_y
         for i in range(4):
             nx, ny = x + dx[i], y + dy[i]
             if 1 <= nx <= 4 and 1 <= ny <= 4:
-                new_a = [row[:] for row in cur_a]
-                new_a[x][y], new_a[nx][ny] = new_a[nx][ny], new_a[x][y]
-                new_a = tuple(tuple(row) for row in new_a)
+                shift1 = shift_map[x][y] 
+                shift2 = shift_map[nx][ny]
+                val2 = (u_s >> shift2) & 0xF  #要交换的值
+                mask = (0xF << shift1) | (0xF << shift2)  #掩码:把val2原本的位置变为空格
+                new_s = u_s & ~mask  
+                new_s |= (val2 << shift1)  #把val2放在原本空格的位置
                 new_g = u_g + 1
-                if new_a not in st :
-                    fa[new_a] = u_a
-                    new_f = new_g + h(new_a)
-                    heapq.heappush(q, (new_f, new_g, new_a))
+                if new_s not in st and new_s not in fa:
+                    fa[new_s] = u_s
+                    new_f = new_g + h(new_s)
+                    heapq.heappush(q, (new_f, new_g, new_s, nx, ny))
+        if node_count % 1000000 == 0:
+            print(f"Nodes processed: {node_count}, Time elapsed: {time.time() - start_time}s")
     end_time = time.time()
-    print(f"\nRunning time: {end_time - start_time}s")
+    print(f"Total running time: {end_time - start_time}s")
+    print(f'total explore nodes: {node_count}')
+def int_to_pos(num):
+    for i in range(1,5):
+        for j in range(1,5):
+            shift = shift_map[i][j]
+            val = (num >> shift) & 0xF
+            if val == 0:
+                return (i, j)
+    return (0, 0)
 
 if __name__ == "__main__":
     main()
