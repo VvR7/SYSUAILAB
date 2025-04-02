@@ -106,16 +106,17 @@ def main():
     start = array_to_int(a)
     start_f = 0 + h(start)
     q = []
-    heapq.heappush(q, (start_f, 0, start, sx, sy))
-    fa[start] = None
+    heapq.heappush(q, (start_f, 0, start, sx, sy,-1))
+    fa[start] = -1
     global success
     success = False
     start_time = time.time()
     node_count = 0
     while q and not success:
-        cur_f, u_g, u_s, u_x, u_y = heapq.heappop(q)
+        cur_f, u_g, u_s, u_x, u_y,fa_s = heapq.heappop(q)
         if u_s in st:
             continue
+        fa[u_s]=fa_s
         node_count += 1
         st.add(u_s)
         if h(u_s) == 0:
@@ -123,8 +124,8 @@ def main():
             print(u_g)
             path = []
             def backtrace(state):
-                if fa.get(state) is None:
-                    x, y = (u_x, u_y) if state == start else int_to_pos(state)
+                if fa.get(state) == -1:
+                    x, y = int_to_pos(state)
                     path.append(f"({x},{y})")
                     return
                 backtrace(fa[state])
@@ -145,9 +146,8 @@ def main():
                 new_s |= (val2 << shift1)  #把val2放在原本空格的位置
                 new_g = u_g + 1
                 if new_s not in st and new_s not in fa:
-                    fa[new_s] = u_s
                     new_f = new_g + h(new_s)
-                    heapq.heappush(q, (new_f, new_g, new_s, nx, ny))
+                    heapq.heappush(q, (new_f, new_g, new_s, nx, ny,u_s))
         if node_count % 1000000 == 0:
             print(f"Nodes processed: {node_count}, Time elapsed: {time.time() - start_time}s")
     end_time = time.time()
