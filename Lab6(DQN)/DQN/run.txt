@@ -1,0 +1,16 @@
+python main.py `
+--env_name "CartPole-v0" `
+--seed 11037 `
+--hidden_size 128 `
+--lr 5e-3 `
+--gamma 0.98 `
+--epsilon 0.01 `
+--target_update 10 `
+--batch_size 64 `
+--buffer_size 10000 `
+--dqn_type "DQN" `
+--num_episodes 300 `
+--min_size 500 `
+--test False `
+--use_cuda True `
+
